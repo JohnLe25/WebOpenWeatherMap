@@ -5,9 +5,17 @@ import matplotlib.pyplot as plt
 import json
 import os
 
-# Định nghĩa mật khẩu và API Key từ biến môi trường
-PASSWORD = os.getenv("APP_PASSWORD", "12345")
-API_KEY = os.getenv("WEATHER_API_KEY", "6d8b08472b1e48178f332905252503")
+# Lấy API Key và mật khẩu từ biến môi trường
+API_KEY = os.getenv("WEATHER_API_KEY")
+PASSWORD = os.getenv("APPWEATHER_PASSWORD")
+
+# Kiểm tra API Key
+if not API_KEY:
+    st.error("❌ Lỗi: API Key chưa được thiết lập. Hãy đặt biến môi trường WEATHER_API_KEY.")
+
+# Kiểm tra mật khẩu
+if not PASSWORD:
+    st.error("❌ Lỗi: Chưa thiết lập mật khẩu. Hãy đặt biến môi trường APP_PASSWORD.")
 
 def get_weather(city):
     url = f"http://api.weatherapi.com/v1/forecast.json?key={API_KEY}&q={city}&days=4"
@@ -36,7 +44,6 @@ def get_weather(city):
             col4.write(f"☁️ {weather_desc}")
 
         plot_temperature_chart(city, dates, temps)
-        save_history(city, forecast_days)
     else:
         st.error("❌ Không thể lấy dữ liệu!")
 
@@ -52,37 +59,6 @@ def plot_temperature_chart(city, dates, temps):
     plt.grid(True)
     st.pyplot(plt)
 
-def save_history(city, forecast_days):
-    history_data = {"city": city, "forecast": []}
-    for day in forecast_days:
-        history_data["forecast"].append({
-            "date": day['date'],
-            "temperature": day['day']['avgtemp_c'],
-            "condition": day['day']['condition']['text']
-        })
-    try:
-        with open("weather_history.json", "r+", encoding="utf-8") as file:
-            data = json.load(file)
-            data.append(history_data)
-            file.seek(0)
-            json.dump(data, file, ensure_ascii=False, indent=4)
-    except (FileNotFoundError, json.JSONDecodeError):
-        with open("weather_history.json", "w", encoding="utf-8") as file:
-            json.dump([history_data], file, ensure_ascii=False, indent=4)
-
-def show_history():
-    try:
-        with open("weather_history.json", "r", encoding="utf-8") as file:
-            data = json.load(file)
-        st.subheader("📜 Lịch Sử Dự Báo Thời Tiết")
-        for record in data:
-            st.write(f"🌍 **{record['city']}**")
-            for day in record["forecast"]:
-                st.write(f"📅 {day['date']} - 🌡️ {day['temperature']}°C - ☁️ {day['condition']}")
-            st.write("---")
-    except (FileNotFoundError, json.JSONDecodeError):
-        st.write("📌 Chưa có lịch sử dữ liệu.")
-
 def main():
     st.title("🌤️ Dự Báo Thời Tiết 3 Ngày")
     st.write("Nhập tên thành phố để xem dự báo!")
@@ -94,8 +70,6 @@ def main():
             city_list = [city.strip() for city in cities.split(",")]
             for city in city_list:
                 get_weather(city)
-        if st.button("Xem lịch sử"):
-            show_history()
     else:
         st.warning("⚠️ Mật khẩu không đúng. Hãy thử lại!")
 
