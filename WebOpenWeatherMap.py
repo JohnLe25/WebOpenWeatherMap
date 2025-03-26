@@ -9,36 +9,18 @@ import os
 PASSWORD = os.getenv("APPWEATHER_PASSWORD")
 API_KEY = os.getenv("WEATHER_API_KEY")
 
-def apply_custom_style():
-    st.markdown(
-        """
-        <style>
-            body {
-                background-color: #E3F2FD; /* Màu xanh dương nhạt */
-                color: #2E3B55; /* Màu chữ tối dịu mắt */
-            }
-            .stApp {
-                background-color: #E8F5E9; /* Xanh lá nhạt */
-            }
-            .stTextInput, .stButton, .stTitle, .stHeader, .stSubheader {
-                color: #1E3A5F; /* Màu xanh đậm giúp dễ đọc */
-            }
-            .stPlotlyChart, .stImage, .stDataFrame {
-                border-radius: 10px;
-                box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
 def get_weather(city):
     url = f"http://api.weatherapi.com/v1/forecast.json?key={API_KEY}&q={city}&days=4"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-        forecast_days = data['forecast']['forecastday']
-
+        forecast_days = data.get('forecast', {}).get('forecastday', [])
+        
+        if not forecast_days:
+            st.error("❌ Không có dữ liệu dự báo!")
+            return
+        
         dates = []
         temps = []
         
@@ -63,20 +45,66 @@ def get_weather(city):
     else:
         st.error("❌ Không thể lấy dữ liệu!")
 
+
 def plot_temperature_chart(city, dates, temps):
     plt.figure(figsize=(10, 5))
-    plt.plot(dates, temps, marker='o', linestyle='-', color='#00838F', linewidth=2, label=city)
+    plt.plot(dates, temps, marker='o', linestyle='-', color='red', linewidth=2, label=city)
     for i, txt in enumerate(temps):
-        plt.text(dates[i], temps[i], f"{txt}°C", fontsize=12, ha='right', va='bottom', color='#004D40')
-    plt.xlabel("Ngày", color="#004D40")
-    plt.ylabel("Nhiệt độ (°C)", color="#004D40")
-    plt.title(f"Dự báo nhiệt độ tại {city}", color="#004D40")
+        plt.text(dates[i], temps[i], f"{txt}°C", fontsize=12, ha='right', va='bottom')
+    plt.xlabel("Ngày")
+    plt.ylabel("Nhiệt độ (°C)")
+    plt.title(f"Dự báo nhiệt độ tại {city}")
     plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.grid(True)
     st.pyplot(plt)
 
+
+def save_history(city, forecast_days):
+    history_data = {"city": city, "forecast": []}
+    for day in forecast_days:
+        history_data["forecast"].append({
+            "date": day['date'],
+            "temperature": day['day']['avgtemp_c'],
+            "condition": day['day']['condition']['text']
+        })
+    
+    try:
+        if os.path.exists("weather_history.json"):
+            with open("weather_history.json", "r", encoding="utf-8") as file:
+                try:
+                    data = json.load(file)
+                except json.JSONDecodeError:
+                    data = []
+        else:
+            data = []
+        
+        data.append(history_data)
+        with open("weather_history.json", "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False, indent=4)
+    except Exception as e:
+        st.error(f"❌ Lỗi khi lưu lịch sử: {e}")
+
+
+def show_history():
+    try:
+        if not os.path.exists("weather_history.json"):
+            st.write("📌 Chưa có lịch sử dữ liệu.")
+            return
+
+        with open("weather_history.json", "r", encoding="utf-8") as file:
+            data = json.load(file)
+        
+        st.subheader("📜 Lịch Sử Dự Báo Thời Tiết")
+        for record in data:
+            st.write(f"🌍 **{record['city']}**")
+            for day in record["forecast"]:
+                st.write(f"📅 {day['date']} - 🌡️ {day['temperature']}°C - ☁️ {day['condition']}")
+            st.write("---")
+    except Exception as e:
+        st.error(f"❌ Lỗi khi đọc lịch sử: {e}")
+
+
 def main():
-    apply_custom_style()
     st.title("🌤️ Dự Báo Thời Tiết 3 Ngày")
     st.write("Nhập tên thành phố để xem dự báo!")
 
@@ -87,8 +115,11 @@ def main():
             city_list = [city.strip() for city in cities.split(",")]
             for city in city_list:
                 get_weather(city)
+        if st.button("Xem lịch sử"):
+            show_history()
     else:
         st.warning("⚠️ Mật khẩu không đúng. Hãy thử lại!")
+
 
 if __name__ == "__main__":
     main()
